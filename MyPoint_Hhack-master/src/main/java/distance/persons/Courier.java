@@ -1,17 +1,19 @@
 package distance.persons;
 
 import distance.DistanceProperties;
+import distance.GoogleRequestException;
+import distance.Point;
 import distance.Trial;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static distance.DistanceProperties.DRIVING;
-import static distance.DistanceProperties.TRANSIT;
+import static distance.DistanceProperties.*;
 
 public class Courier extends Personality<Courier> {
     private static Logger logger = LoggerFactory.getLogger(Courier.class);
@@ -19,9 +21,20 @@ public class Courier extends Personality<Courier> {
     private long departureTime;
     private boolean isBusy;
     private boolean onlineStatus;
+    private List<Object> pars;
+    {
+        pars = new ArrayList<>();
+    }
 
-    public Courier(long lat, long lon, long id) {
+    public Courier(double lat, double lon, long id) {
         super(lat, lon, id);
+    }
+
+    public Courier(String currentPlace, long id){
+        Point curP = Point.geoCodePoint(currentPlace, id);
+        this.id = id;
+        lat = curP.getLat();
+        lon = curP.getLon();
     }
 
     public Courier initOnline(boolean onlineStatus) {
@@ -33,12 +46,13 @@ public class Courier extends Personality<Courier> {
         if (!onlineStatus) logger.error("Courier is not online", new IllegalStateException());
         this.trial = trial;
         isBusy = true;
+        pars.add("origin=" + lat + "%2C" + lon + trial);
         return this;
     }
 
     @Override
     public Stream<String> parameters() {
-        return null;
+        return pars.stream().map(Object::toString);
     }
 
     public void updatePosition(long lat, long lon) {
@@ -57,7 +71,11 @@ public class Courier extends Personality<Courier> {
     }
 
     public Courier rideMode(DistanceProperties rideMode) {
+        if(rideMode == TRANSIT && trial.interSize() > 0){
+            throw new GoogleRequestException("Exactly two waypoints required in transit requests");
+        }
         this.rideMode = rideMode;
+        pars.add("mode=" + rideMode);
         return this;
     }
 
@@ -67,46 +85,12 @@ public class Courier extends Personality<Courier> {
      * @return this object of Courier
      */
     public Courier departureTime(LocalDateTime departure) throws IllegalArgumentException {
-        if (rideMode != TRANSIT) {
+        if (rideMode == TRANSIT) {
+            System.out.println(rideMode);
             throw new IllegalArgumentException("Ride mode is not 'TRANSIT'");
         }
         this.departureTime = departure.toInstant(ZoneOffset.UTC).toEpochMilli();
+        pars.add("departure_time=" + departure.toInstant(ZoneOffset.UTC).toEpochMilli());
         return this;
     }
-
-//    public String getFirstName() {
-//        return firstName;
-//    }
-//
-//    public String getLastName() {
-//        return lastName;
-//    }
-//
-//    public DistanceProperties getRideMode() {
-//        return rideMode;
-//    }
-//
-//    public long getLat() {
-//        return lat;
-//    }
-//
-//    public long getLon() {
-//        return lon;
-//    }
-//
-//    public long getId() {
-//        return id;
-//    }
-//
-//    public Trial getTrial() {
-//        return trial;
-//    }
-//
-//    public long getDepartureTime() {
-//        return departureTime;
-//    }
-//
-//    public boolean isBusy() {
-//        return isBusy;
-//    }
 }

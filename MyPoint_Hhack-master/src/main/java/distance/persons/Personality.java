@@ -9,15 +9,19 @@ import java.util.stream.Stream;
 import static distance.DistanceProperties.DRIVING;
 
 public abstract class Personality<T extends Personality<T>>{
-    protected String firstName = "unknown";
-    protected String lastName = "unknown";
-    protected DistanceProperties rideMode = DRIVING;
-    protected long lat;
-    protected long lon;
-    protected long id;
-    protected Trial trial;
+    String firstName = "unknown";
+    String lastName = "unknown";
+    DistanceProperties rideMode;
+    double lat;
+    double lon;
+    long id;
+    Trial trial;
 
-    public Personality(long lat, long lon, long id) {
+    public Personality(){
+        rideMode = DRIVING;
+    }
+
+    public Personality(double lat, double lon, long id) {
         this.lat = lat;
         this.lon = lon;
         this.id = id;

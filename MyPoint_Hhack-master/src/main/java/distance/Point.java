@@ -2,6 +2,9 @@ package distance;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonObject;
+import com.google.gson.annotations.SerializedName;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -13,12 +16,12 @@ import java.util.Objects;
 import java.util.Optional;
 
 public class Point {
-    private static final String GEO_REQ = "https://maps.googleapis.com/maps/api/geocode/json?address=";
-    private static final String API_KEY = "AIzaSyCeIxuyZnQ2Ck3XbauOEZXLwIpyOI1Thn8";
+    private transient static final String GEO_REQ = "https://maps.googleapis.com/maps/api/geocode/json?address=";
+    private transient static final String API_KEY = "AIzaSyCeIxuyZnQ2Ck3XbauOEZXLwIpyOI1Thn8";
     private double lat;
     private double lon;
     private String placeName;
-    private long id;
+    private transient long id;
 
     private Point(double lat, double lon){
         this.lat = lat;
@@ -30,30 +33,36 @@ public class Point {
         this.id = id;
     }
 
+    private static JsonDeserializer<Point> pointJsonDeserializer = (jsonElement, type, jsonDeserializationContext) -> {
+        JsonObject firstEl = jsonElement.getAsJsonObject().getAsJsonArray("results").get(0).
+                getAsJsonObject();
+        JsonObject location = firstEl.getAsJsonObject("geometry").getAsJsonObject("location");
+        return new Point(location.getAsJsonPrimitive("lat").getAsDouble(),
+                location.getAsJsonPrimitive("lng").getAsDouble()).
+                setPlaceName(firstEl.getAsJsonPrimitive("formatted_address").getAsString());
+    };
+
     /**
      * From place name to coordinates
      * **/
     public static Point geoCodePoint(String placeName, long id){
-        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        Gson gson = new GsonBuilder().setPrettyPrinting().registerTypeAdapter(Point.class, pointJsonDeserializer).create();
         Point point = gson.fromJson(Objects.requireNonNull(readJson(placeName)).orElseThrow(GoogleRequestException::new),
                 Point.class);
         point.id = id;
-        //JsonDeserializer...
         return point;
     }
 
     private static Optional<Reader> readJson(String placeName){
-        HttpURLConnection http = null;
         try {
-             http = (HttpURLConnection) new URL(String.format("%s%s&key=%s", GEO_REQ,
+             HttpURLConnection http = (HttpURLConnection) new URL(String.format("%s%s&language=ru&key=%s", GEO_REQ,
                     placeName.replaceAll(",|\\.|\\s", "+"), API_KEY)).openConnection();
+            http.disconnect();
             return Optional.of(new InputStreamReader(http.getInputStream()));
         } catch (IOException e) {
             return Optional.empty();
-        }finally {
-            assert http != null;
-            http.disconnect();
         }
+
     }
 
     public double getLat() {
@@ -76,11 +85,17 @@ public class Point {
         return placeName;
     }
 
-    public void setPlaceName(String placeName) {
+    public Point setPlaceName(String placeName) {
         this.placeName = placeName;
+        return this;
     }
 
     public long getId() {
         return id;
+    }
+
+    @Override
+    public String toString() {
+        return String.format("%f%s%f",lat,"%2C", lon).replaceAll(",", ".");
     }
 }
